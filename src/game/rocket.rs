@@ -9,14 +9,15 @@ impl Plugin for RocketPlugin {
 }
 
 #[derive(Component, Default)]
-pub struct Rocket {
-
-}
+pub struct Rocket {}
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn((Rocket::default(), SpriteBundle {
-        texture: asset_server.load("cohete_off.png"),
-        transform: Transform::from_xyz(0., 0., 3.),
-        ..Default::default()
-    }));
+    commands.spawn((
+        Rocket::default(),
+        SpriteBundle {
+            texture: asset_server.load("cohete_off.png"),
+            transform: Transform::from_xyz(0., 0., 3.),
+            ..Default::default()
+        },
+    ));
 }

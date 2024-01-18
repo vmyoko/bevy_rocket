@@ -1,16 +1,31 @@
-use bevy::prelude::*;
+use bevy::{
+    prelude::*,
+    window::{EnabledButtons, WindowResolution},
+};
 
 mod game;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: String::from("Rocket"),
+                resolution: WindowResolution::new(1280., 720.),
+                resizable: false,
+                enabled_buttons: EnabledButtons {
+                    maximize: false,
+                    minimize: false,
+                    close: true,
+                },
+                ..default()
+            }),
+            ..default()
+        }))
         .add_plugins(game::GamePlugin)
         .add_systems(Startup, setup)
-    .run();
+        .run();
 }
 
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
-
 }

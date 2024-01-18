@@ -11,4 +11,3 @@ impl Plugin for GamePlugin {
         app.add_plugins(RocketPlugin);
     }
 }
-
