@@ -67,7 +67,6 @@ fn fall(mut rocket: Query<&mut Rocket>) {
                 Vec3::new(0., -TERMINAL_VELOCITY, 0.)
             };
             rocket.velocity = velocity;
-            println!("{velocity}");
         }
     }
 }
