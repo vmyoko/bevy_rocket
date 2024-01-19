@@ -3,13 +3,14 @@ use bevy::prelude::*;
 const ROCKET_SCALE: f32 = 0.5;
 const ROCKET_MAX_SPEED: f32 = 150.;
 const ROCKET_ACCELERATION: f32 = 2.;
+const ROCKET_DRAG: f32 = 1.;
 
 pub struct RocketPlugin;
 
 impl Plugin for RocketPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup)
-            .add_systems(Update, (boost.run_if(has_boost_input), update));
+            .add_systems(Update, (boost, update));
     }
 }
 
@@ -28,30 +29,38 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 }
 
-fn boost(mut rocket: Query<&mut Rocket>) {
+fn boost(mut rocket: Query<&mut Rocket>, keyboard_input: Res<Input<KeyCode>>) {
+    let has_boost_input = keyboard_input.pressed(KeyCode::Space)
+        || keyboard_input.pressed(KeyCode::Up)
+        || keyboard_input.pressed(KeyCode::Down);
+
     for mut rocket in &mut rocket {
-        rocket.state = RocktState::Boosting;
-        let speed = if rocket.velocity.length() < ROCKET_MAX_SPEED {
-            rocket.velocity.length() + ROCKET_ACCELERATION
-        } else {
-            ROCKET_MAX_SPEED
-        };
-        rocket.velocity = Vec3::new(0., speed, 0.);
+        if has_boost_input {
+            rocket.state = RocktState::Boosting;
+            let speed = if rocket.velocity.length() < ROCKET_MAX_SPEED {
+                rocket.velocity.length() + ROCKET_ACCELERATION
+            } else {
+                ROCKET_MAX_SPEED
+            };
+            rocket.velocity = Vec3::new(0., speed, 0.);
+        } else if rocket.state != RocktState::Grounded {
+            rocket.state = RocktState::Inert;
+            let speed = if rocket.velocity.length() > 0. {
+                rocket.velocity.length() - ROCKET_DRAG
+            } else {
+                0.
+            };
+            rocket.velocity = Vec3::new(0., speed, 0.);
+        }
     }
 }
 
 fn update(mut rocket: Query<(&Rocket, &mut Transform)>, time: Res<Time>) {
     for (rocket, mut transform) in &mut rocket {
-        if rocket.state == RocktState::Boosting {
+        if rocket.velocity.length() > 0. {
             transform.translation += rocket.velocity * time.delta_seconds();
         }
     }
-}
-
-fn has_boost_input(keyboard_input: Res<Input<KeyCode>>) -> bool {
-    keyboard_input.pressed(KeyCode::Space)
-        || keyboard_input.pressed(KeyCode::Up)
-        || keyboard_input.pressed(KeyCode::Down)
 }
 
 #[derive(Default, PartialEq)]
@@ -59,6 +68,7 @@ enum RocktState {
     #[default]
     Grounded,
     Boosting,
+    Inert,
 }
 
 #[derive(Component, Default)]
