@@ -38,19 +38,19 @@ fn boost(mut rocket: Query<&mut Rocket>, keyboard_input: Res<Input<KeyCode>>) {
 
     for mut rocket in &mut rocket {
         if has_boost_input {
-            rocket.state = RocktState::Boosting;
+            rocket.state = RocketState::Boosting;
             let speed = if rocket.velocity.length() < ROCKET_MAX_SPEED {
                 rocket.velocity.length() + ROCKET_ACCELERATION
             } else {
                 ROCKET_MAX_SPEED
             };
             rocket.velocity = Vec3::new(0., speed, 0.);
-        } else if rocket.state != RocktState::Grounded && rocket.state != RocktState::Falling {
-            rocket.state = RocktState::Inert;
+        } else if rocket.state != RocketState::Grounded && rocket.state != RocketState::Falling {
+            rocket.state = RocketState::Inert;
             let speed = if rocket.velocity.length() > 0. {
                 rocket.velocity.length() - ROCKET_DRAG
             } else {
-                rocket.state = RocktState::Falling;
+                rocket.state = RocketState::Falling;
                 0.
             };
             rocket.velocity = Vec3::new(0., speed, 0.);
@@ -60,7 +60,7 @@ fn boost(mut rocket: Query<&mut Rocket>, keyboard_input: Res<Input<KeyCode>>) {
 
 fn fall(mut rocket: Query<&mut Rocket>) {
     for mut rocket in &mut rocket {
-        if rocket.state == RocktState::Falling {
+        if rocket.state == RocketState::Falling {
             let velocity = if rocket.velocity.length() < TERMINAL_VELOCITY {
                 rocket.velocity - Vec3::new(0., GRAVITY, 0.)
             } else {
@@ -81,7 +81,7 @@ fn update(mut rocket: Query<(&Rocket, &mut Transform)>, time: Res<Time>) {
 }
 
 #[derive(Default, PartialEq)]
-enum RocktState {
+enum RocketState {
     #[default]
     Grounded,
     Boosting,
@@ -91,6 +91,6 @@ enum RocktState {
 
 #[derive(Component, Default)]
 pub struct Rocket {
-    state: RocktState,
+    state: RocketState,
     velocity: Vec3,
 }
