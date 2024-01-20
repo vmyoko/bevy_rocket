@@ -6,13 +6,14 @@ const ROCKET_ACCELERATION: f32 = 2.;
 const ROCKET_DRAG: f32 = 1.;
 const GRAVITY: f32 = 1.;
 const TERMINAL_VELOCITY: f32 = 300.;
+const TURNING_SPEED: f32 = 90. * 0.01745; //degrees multiplied by PI/180 to convert to radians
 
 pub struct RocketPlugin;
 
 impl Plugin for RocketPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup)
-            .add_systems(Update, (boost, fall, update));
+            .add_systems(Update, (rotate, boost, fall, update));
     }
 }
 
@@ -29,6 +30,24 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..Default::default()
         },
     ));
+}
+
+fn rotate(mut query: Query<&mut Rocket>, keyboard_input: Res<Input<KeyCode>>, time: Res<Time>) {
+    for mut rocket in &mut query {
+        if !keyboard_input.pressed(KeyCode::Left) && !keyboard_input.pressed(KeyCode::Right) {
+            rocket.rotation = 0.;
+            break;
+        }
+        if rocket.state == RocketState::Grounded {
+            break;
+        }
+        let turn_direction = if keyboard_input.pressed(KeyCode::Left) {
+            -1.
+        } else {
+            1.
+        };
+        rocket.rotation = turn_direction * TURNING_SPEED * time.delta_seconds();
+    }
 }
 
 fn boost(mut rocket: Query<&mut Rocket>, keyboard_input: Res<Input<KeyCode>>) {
@@ -75,6 +94,7 @@ fn update(mut rocket: Query<(&Rocket, &mut Transform)>, time: Res<Time>) {
     for (rocket, mut transform) in &mut rocket {
         if rocket.velocity.length() != 0. {
             transform.translation += rocket.velocity * time.delta_seconds();
+            transform.rotate_z(rocket.rotation);
         }
     }
 }
@@ -92,4 +112,5 @@ enum RocketState {
 pub struct Rocket {
     state: RocketState,
     velocity: Vec3,
+    rotation: f32,
 }
