@@ -1,11 +1,9 @@
 use bevy::prelude::*;
 
 const ROCKET_SCALE: f32 = 0.5;
-const ROCKET_MAX_SPEED: f32 = 150.;
+const ROCKET_MAX_SPEED: f32 = 300.;
 const ROCKET_ACCELERATION: f32 = 2.;
-const ROCKET_DRAG: f32 = 1.;
-const GRAVITY: f32 = 1.;
-const TERMINAL_VELOCITY: f32 = 300.;
+const GRAVITY: f32 = 300.;
 const TURNING_SPEED: f32 = 90. * 0.01745; //degrees multiplied by PI/180 to convert to radians
 
 pub struct RocketPlugin;
@@ -73,33 +71,38 @@ fn boost(mut rocket: Query<(&mut Rocket, &mut Transform)>, keyboard_input: Res<I
         rocket.direction = rotation_vec3.normalize();
 
         if has_boost_input {
+            rocket.ballistic_trajectory = 0.;
             rocket.state = RocketState::Boosting;
             let speed = f32::min(
                 ROCKET_MAX_SPEED,
                 rocket.velocity.length() + ROCKET_ACCELERATION,
             );
             rocket.velocity = rocket.direction * speed;
-        } else if rocket.state != RocketState::Grounded && rocket.state != RocketState::Falling {
-            let speed = f32::max(0., rocket.velocity.length() - ROCKET_DRAG);
-            rocket.state = if speed > 0. {
-                RocketState::Inert
-            } else {
-                RocketState::Falling
-            };
-            rocket.velocity = rocket.direction * speed;
+            rocket.last_boost_velocity = rocket.velocity;
+        } else if rocket.state != RocketState::Grounded {
+            rocket.state = RocketState::Falling;
         }
     }
 }
 
-fn fall(mut rocket: Query<&mut Rocket>) {
+fn fall(mut rocket: Query<&mut Rocket>, time: Res<Time>) {
+    let gravity_acceleration = Vec3::new(0., -GRAVITY, 0.);
     for mut rocket in &mut rocket {
         if rocket.state == RocketState::Falling {
-            let velocity = if rocket.velocity.length() < TERMINAL_VELOCITY {
-                rocket.velocity - Vec3::new(0., GRAVITY, 0.)
+            if rocket.ballistic_trajectory < 1. {
+                rocket.velocity = rocket
+                    .last_boost_velocity
+                    .lerp(gravity_acceleration, rocket.ballistic_trajectory);
+                rocket.ballistic_trajectory =
+                    f32::min(1., rocket.ballistic_trajectory + time.delta_seconds());
             } else {
-                Vec3::new(0., -TERMINAL_VELOCITY, 0.)
-            };
-            rocket.velocity = velocity;
+                let velocity = if rocket.velocity.length() < GRAVITY {
+                    rocket.velocity - gravity_acceleration
+                } else {
+                    Vec3::new(0., -GRAVITY, 0.)
+                };
+                rocket.velocity = velocity;
+            }
         }
     }
 }
@@ -117,7 +120,6 @@ enum RocketState {
     #[default]
     Grounded,
     Boosting,
-    Inert,
     Falling,
 }
 
@@ -127,4 +129,6 @@ pub struct Rocket {
     velocity: Vec3,
     rotate: f32,
     direction: Vec3,
+    ballistic_trajectory: f32,
+    last_boost_velocity: Vec3,
 }
