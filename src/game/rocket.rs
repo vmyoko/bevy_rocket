@@ -1,6 +1,4 @@
-use std::ops::Sub;
-
-use bevy::{prelude::*, render::render_resource::encase::vector::FromVectorParts};
+use bevy::prelude::*;
 
 const ROCKET_SCALE: f32 = 0.5;
 const ROCKET_MAX_SPEED: f32 = 150.;
