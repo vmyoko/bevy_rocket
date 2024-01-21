@@ -1,4 +1,6 @@
-use bevy::prelude::*;
+use std::ops::Sub;
+
+use bevy::{prelude::*, render::render_resource::encase::vector::FromVectorParts};
 
 const ROCKET_SCALE: f32 = 0.5;
 const ROCKET_MAX_SPEED: f32 = 150.;
@@ -19,7 +21,10 @@ impl Plugin for RocketPlugin {
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
-        Rocket::default(),
+        Rocket {
+            direction: Vec3::new(0., 1., 0.),
+            ..default()
+        },
         SpriteBundle {
             texture: asset_server.load("cohete_off.png"),
             transform: Transform::from_xyz(0., 0., 3.).with_scale(Vec3::new(
@@ -35,44 +40,55 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn rotate(mut query: Query<&mut Rocket>, keyboard_input: Res<Input<KeyCode>>, time: Res<Time>) {
     for mut rocket in &mut query {
         if !keyboard_input.pressed(KeyCode::Left) && !keyboard_input.pressed(KeyCode::Right) {
-            rocket.rotation = 0.;
+            rocket.rotate = 0.;
             break;
         }
         if rocket.state == RocketState::Grounded {
             break;
         }
         let turn_direction = if keyboard_input.pressed(KeyCode::Left) {
-            -1.
-        } else {
             1.
+        } else {
+            -1.
         };
-        rocket.rotation = turn_direction * TURNING_SPEED * time.delta_seconds();
+        rocket.rotate = turn_direction * TURNING_SPEED * time.delta_seconds();
     }
 }
 
-fn boost(mut rocket: Query<&mut Rocket>, keyboard_input: Res<Input<KeyCode>>) {
+fn boost(mut rocket: Query<(&mut Rocket, &mut Transform)>, keyboard_input: Res<Input<KeyCode>>) {
     let has_boost_input = keyboard_input.pressed(KeyCode::Space)
         || keyboard_input.pressed(KeyCode::Up)
         || keyboard_input.pressed(KeyCode::Down);
 
-    for mut rocket in &mut rocket {
+    for (mut rocket, mut transform) in &mut rocket {
+        transform.rotate_z(rocket.rotate);
+        let rotation_quat = Quat::from_rotation_z(rocket.rotate);
+        let rotation = rotation_quat
+            * Quat::from_vec4(Vec4::new(
+                rocket.direction.x,
+                rocket.direction.y,
+                rocket.direction.z,
+                0.,
+            ))
+            * rotation_quat.inverse();
+        let rotation_vec3 = Vec3::new(rotation.x, rotation.y, rotation.z);
+        rocket.direction = rotation_vec3.normalize();
+
         if has_boost_input {
             rocket.state = RocketState::Boosting;
-            let speed = if rocket.velocity.length() < ROCKET_MAX_SPEED {
-                rocket.velocity.length() + ROCKET_ACCELERATION
-            } else {
-                ROCKET_MAX_SPEED
-            };
-            rocket.velocity = Vec3::new(0., speed, 0.);
+            let speed = f32::min(
+                ROCKET_MAX_SPEED,
+                rocket.velocity.length() + ROCKET_ACCELERATION,
+            );
+            rocket.velocity = rocket.direction * speed;
         } else if rocket.state != RocketState::Grounded && rocket.state != RocketState::Falling {
-            rocket.state = RocketState::Inert;
-            let speed = if rocket.velocity.length() > 0. {
-                rocket.velocity.length() - ROCKET_DRAG
+            let speed = f32::max(0., rocket.velocity.length() - ROCKET_DRAG);
+            rocket.state = if speed > 0. {
+                RocketState::Inert
             } else {
-                rocket.state = RocketState::Falling;
-                0.
+                RocketState::Falling
             };
-            rocket.velocity = Vec3::new(0., speed, 0.);
+            rocket.velocity = rocket.direction * speed;
         }
     }
 }
@@ -94,7 +110,6 @@ fn update(mut rocket: Query<(&Rocket, &mut Transform)>, time: Res<Time>) {
     for (rocket, mut transform) in &mut rocket {
         if rocket.velocity.length() != 0. {
             transform.translation += rocket.velocity * time.delta_seconds();
-            transform.rotate_z(rocket.rotation);
         }
     }
 }
@@ -112,5 +127,6 @@ enum RocketState {
 pub struct Rocket {
     state: RocketState,
     velocity: Vec3,
-    rotation: f32,
+    rotate: f32,
+    direction: Vec3,
 }
