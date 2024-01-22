@@ -19,6 +19,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Rocket {
             direction: Vec3::new(0., 1., 0.),
+            force_compensation: 1.,
             ..default()
         },
         SpriteBundle {
@@ -51,7 +52,11 @@ fn rotate(mut query: Query<&mut Rocket>, keyboard_input: Res<Input<KeyCode>>, ti
     }
 }
 
-fn boost(mut rocket: Query<(&mut Rocket, &mut Transform)>, keyboard_input: Res<Input<KeyCode>>) {
+fn boost(
+    mut rocket: Query<(&mut Rocket, &mut Transform)>,
+    keyboard_input: Res<Input<KeyCode>>,
+    time: Res<Time>,
+) {
     let has_boost_input = keyboard_input.pressed(KeyCode::Space)
         || keyboard_input.pressed(KeyCode::Up)
         || keyboard_input.pressed(KeyCode::Down);
@@ -72,13 +77,21 @@ fn boost(mut rocket: Query<(&mut Rocket, &mut Transform)>, keyboard_input: Res<I
 
         if has_boost_input {
             rocket.ballistic_trajectory = 0.;
-            rocket.state = RocketState::Boosting;
-            let speed = f32::min(
-                ROCKET_MAX_SPEED,
-                rocket.velocity.length() + ROCKET_ACCELERATION,
-            );
-            rocket.velocity = rocket.direction * speed;
-            rocket.last_boost_velocity = rocket.velocity;
+            if rocket.force_compensation < 1. {
+                rocket.velocity = rocket
+                    .last_fall_velocity
+                    .lerp(rocket.direction, rocket.force_compensation);
+                rocket.force_compensation =
+                    f32::min(1., rocket.force_compensation + time.delta_seconds());
+            } else {
+                rocket.state = RocketState::Boosting;
+                let speed = f32::min(
+                    ROCKET_MAX_SPEED,
+                    rocket.velocity.length() + ROCKET_ACCELERATION,
+                );
+                rocket.velocity = rocket.direction * speed;
+                rocket.last_boost_velocity = rocket.velocity;
+            }
         } else if rocket.state != RocketState::Grounded {
             rocket.state = RocketState::Falling;
         }
@@ -96,12 +109,14 @@ fn fall(mut rocket: Query<&mut Rocket>, time: Res<Time>) {
                 rocket.ballistic_trajectory =
                     f32::min(1., rocket.ballistic_trajectory + time.delta_seconds());
             } else {
+                rocket.force_compensation = 0.;
                 let velocity = if rocket.velocity.length() < GRAVITY {
                     rocket.velocity - gravity_acceleration
                 } else {
                     Vec3::new(0., -GRAVITY, 0.)
                 };
                 rocket.velocity = velocity;
+                rocket.last_fall_velocity = velocity;
             }
         }
     }
@@ -130,5 +145,7 @@ pub struct Rocket {
     rotate: f32,
     direction: Vec3,
     ballistic_trajectory: f32,
+    last_fall_velocity: Vec3,
+    force_compensation: f32,
     last_boost_velocity: Vec3,
 }
